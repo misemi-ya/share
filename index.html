@@ -42,7 +42,6 @@
         }
         .upload-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; color: #003366; }
         
-        /* Uploadcareボタンのカスタマイズ */
         .uploadcare--widget__button_type_open {
             background-color: #003366 !important;
             color: white !important;
@@ -104,16 +103,18 @@
         <div class="container">
             <div class="upload-section">
                 <div class="upload-title"><i class="fa-solid fa-cloud-arrow-up"></i> ファイル共有</div>
-                <p style="margin-bottom:20px; color:#666;">ファイルをアップロードすると、学内ネットワークに接続している全員に共有されます。</p>
                 
-                <!-- 
-                   data-input-accept-types="*" : 全てのファイル形式を許可
-                   data-system-dialog="true" : エラー回避のためシステムダイアログを使用
-                -->
+                <p style="margin-bottom:10px; color:#666;">
+                    ファイルをアップロードすると、学内ネットワークに接続している全員に共有されます。
+                </p>
+                <p style="margin-bottom:20px; color:#d9534f; font-size:0.9rem; font-weight:bold;">
+                    ※フォルダごと、または .exe 等の実行ファイルは、必ず <i class="fa-solid fa-file-zipper"></i> ZIP形式に圧縮してからアップロードしてください。
+                </p>
+                
                 <input type="hidden" role="uploadcare-uploader" 
                        data-public-key="7c680c46e4cd4508beec" 
                        data-tabs="file camera url" 
-                       data-input-accept-types="*"
+                       data-input-accept-types="*" 
                        data-system-dialog="true"
                        id="uploader" />
             </div>
@@ -191,7 +192,6 @@
         const db = getDatabase(app);
         const filesRef = ref(db, 'sharedFiles');
 
-        // アップロード完了処理
         const widget = uploadcare.Widget('[role=uploadcare-uploader]');
         
         widget.onUploadComplete(function(fileInfo) {
@@ -212,7 +212,6 @@
             });
         });
 
-        // データ受信 & リスト更新
         onValue(filesRef, (snapshot) => {
             const list = document.getElementById('file-list');
             list.innerHTML = '';
@@ -249,7 +248,6 @@
             }
         });
 
-        // 削除機能
         window.deleteFile = (key) => {
             if(confirm("削除しますか？")) {
                 remove(ref(db, 'sharedFiles/' + key));
