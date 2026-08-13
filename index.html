@@ -134,18 +134,71 @@
         import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         // ==========================================
-        //  1. VPNチェック
+        //  1. VPN・アクセスチェック設定
         // ==========================================
         const VPN_HOST = 'public-vpn-129.opengw.net';
+        const CAMPUS_IPS = [
+            '192.0.2.1',
+            '198.51.100.1'
+        ];
 
         function getSubnet(ip) { 
             return ip ? ip.split('.').slice(0,3).join('.') : ""; 
         }
 
+        // ロック解除処理
+        function passVpnCheck(saveTrusted = false) {
+            if (saveTrusted) {
+                const expireMs = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30日後
+                localStorage.setItem('trusted_device_until', expireMs.toString());
+            }
+            document.getElementById('vpn-lock-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('vpn-lock-screen').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+                setTimeout(() => document.getElementById('main-app').style.opacity = '1', 50);
+            }, 500);
+        }
+
+        // エラー画面表示処理
+        function showError(ip) {
+            document.getElementById('vpn-checking').style.display = 'none';
+            document.getElementById('vpn-error').style.display = 'block';
+            document.getElementById('user-ip').textContent = ip;
+        }
+
+        // 接続確認メイン処理
         async function verifyConnection() {
             try {
+                // ① URLパラメータによる緊急バイパス
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('bypass') === 'mmu2026') {
+                    passVpnCheck(false);
+                    return;
+                }
+
+                // ② 登録済みデバイスのバイパス
+                const trustedUntil = localStorage.getItem('trusted_device_until');
+                if (trustedUntil && Date.now() < parseInt(trustedUntil)) {
+                    passVpnCheck(false);
+                    return;
+                }
+
+                // ③ IPとSSIDによる学内ネットワーク判定
                 const ipRes = await fetch('https://api.ipify.org?format=json');
-                const myIp = (await ipRes.json()).ip;
+                const ipData = await ipRes.json();
+                const myIp = ipData.ip;
+
+                const isCampusNetwork = CAMPUS_IPS.includes(myIp);
+                const currentSSID = window.currentSSID || "";
+                const isCampusSSID = (currentSSID === "MMU-WiFi" || currentSSID === "MMU-hs-WiFi");
+
+                if (isCampusNetwork || isCampusSSID) {
+                    passVpnCheck(true);
+                    return;
+                }
+
+                // ④ VPNチェック
                 const dnsRes = await fetch(`https://dns.google/resolve?name=${VPN_HOST}&type=A`);
                 const dnsData = await dnsRes.json();
                 const vpnIp = dnsData.Answer ? dnsData.Answer[0].data : "Unresolved";
@@ -154,28 +207,18 @@
                 const vpnSub = getSubnet(vpnIp);
 
                 if (vpnIp !== "Unresolved" && mySub === vpnSub) {
-                    document.getElementById('vpn-lock-screen').style.opacity = '0';
-                    setTimeout(() => {
-                        document.getElementById('vpn-lock-screen').style.display = 'none';
-                        document.getElementById('main-app').style.display = 'block';
-                        setTimeout(() => document.getElementById('main-app').style.opacity = '1', 50);
-                    }, 500);
+                    passVpnCheck(true);
                 } else {
                     showError(myIp);
                 }
-            } catch (e) {
+            } catch (error) {
+                console.error(error);
                 showError("Network Error");
             }
         }
 
-        function showError(ip) {
-            document.getElementById('vpn-checking').style.display = 'none';
-            document.getElementById('vpn-error').style.display = 'block';
-            document.getElementById('user-ip').textContent = ip;
-        }
-
         // ==========================================
-        //  2. Firebase連携
+        //  2. Firebase & Uploadcare 連携
         // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyAuj26lGBWGdcfiLoiCl8s0jTQN3UBu_iM",
@@ -263,9 +306,8 @@
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
         }
 
+        // 初回ロード時にVPNチェックを開始
         verifyConnection();
     </script>
 </body>
 </html>
-
-
